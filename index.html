@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GachaExpense 盲盒記帳小遊戲</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-slate-100 min-h-screen p-8">
+    <div class="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+
+        <div class="bg-white p-6 rounded-xl shadow-md">
+            <h2 class="text-2xl font-bold mb-4 text-slate-700">遊戲化記帳</h2>
+            <div class="mb-4">
+                <input id="itemInput" type="text" placeholder="品項 (如: 午餐)" class="w-full p-2 border rounded mb-2">
+                <input id="amountInput" type="number" placeholder="金額" class="w-full p-2 border rounded mb-2">
+                <button onclick="addExpense()"
+                    class="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600 transition">送出記帳 (賺取代幣)</button>
+            </div>
+            <h3 class="font-semibold text-slate-600 mb-2">歷史帳目</h3>
+            <ul id="expenseList" class="divide-y h-48 overflow-y-auto"></ul>
+        </div>
+
+        <div class="bg-white p-6 rounded-xl shadow-md flex flex-col justify-between">
+            <div>
+                <h2 class="text-2xl font-bold mb-4 text-slate-700">盲盒抽卡機</h2>
+                <div class="bg-amber-100 text-amber-800 p-3 rounded-lg font-bold text-center mb-6">
+                    當前擁有代幣：<span id="tokenCount" class="text-xl">0</span> 🪙
+                </div>
+                <div class="text-center py-8 border-4 border-dashed border-slate-200 rounded-lg bg-slate-50 mb-4">
+                    <p id="gachaResult" class="text-lg font-bold text-slate-500">試試你的手氣吧！(每次 20 代幣)</p>
+                </div>
+            </div>
+            <button onclick="drawGacha()"
+                class="w-full bg-amber-500 text-white py-3 rounded-xl font-bold text-lg hover:bg-amber-600 transition shadow-md">
+                抽取盲盒！
+            </button>
+        </div>
+
+    </div>
+
+    <script>
+        const API_URL = 'http://127.0.0.1:8000/api';
+
+        // 初始化與重新整理資料
+        async function updateStatus() {
+            try {
+                const res = await fetch(`${API_URL}/status`);
+                if (!res.ok) throw new Error('無法取得伺服器狀態');
+                const data = await res.json();
+                document.getElementById('tokenCount').innerText = data.tokens;
+
+                const list = document.getElementById('expenseList');
+                list.innerHTML = data.expenses.map(e => `
+                    <li class="py-2 flex justify-between text-slate-600">
+                        <span>${e.item}</span>
+                        <span class="font-bold">$${e.amount}</span>
+                    </li>
+                `).join('');
+            } catch (err) {
+                console.error(err);
+                document.getElementById('gachaResult').innerText = "後端伺服器未啟動，請先啟動後端！";
+                document.getElementById('gachaResult').className = "text-md font-bold text-red-500";
+            }
+        }
+
+        // 新增記帳
+        async function addExpense() {
+            const itemInput = document.getElementById('itemInput');
+            const amountInput = document.getElementById('amountInput');
+            const item = itemInput.value.trim();
+            const amount = parseInt(amountInput.value);
+
+            // 前端欄位驗證
+            if (!item) {
+                alert('請輸入記帳品項！');
+                return;
+            }
+            if (isNaN(amount) || amount <= 0) {
+                alert('請輸入大於 0 的有效金額！');
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_URL}/expenses`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ item, amount })
+                });
+
+                if (res.ok) {
+                    alert('記帳成功！代幣已入帳');
+                    // 清空輸入框
+                    itemInput.value = '';
+                    amountInput.value = '';
+                    updateStatus();
+                } else {
+                    const err = await res.json();
+                    // 確保 detail 是字串再顯示，如果是陣列（例如 FastAPI 驗證錯誤）則顯示一般錯誤訊息
+                    const errorMsg = typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail);
+                    alert('記帳失敗：' + errorMsg);
+                }
+            } catch (err) {
+                alert('連線失敗，請檢查後端伺服器是否運行中。');
+            }
+        }
+
+        // 抽卡邏輯
+        async function drawGacha() {
+            try {
+                const res = await fetch(`${API_URL}/gacha`, { method: 'POST' });
+                if (res.ok) {
+                    const data = await res.json();
+                    const resultText = document.getElementById('gachaResult');
+                    resultText.innerText = `恭喜獲得：【${data.card_name}】`;
+
+                    // 依稀有度變更文字顏色與動畫
+                    if (data.rarity === 'SSR') {
+                        resultText.className = "text-xl font-bold text-red-500 animate-bounce";
+                    } else if (data.rarity === 'SR') {
+                        resultText.className = "text-xl font-bold text-purple-600";
+                    } else {
+                        resultText.className = "text-xl font-bold text-slate-700";
+                    }
+
+                    updateStatus();
+                } else {
+                    const err = await res.json();
+                    const errorMsg = typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail);
+                    alert(errorMsg);
+                }
+            } catch (err) {
+                alert('連線失敗，請檢查後端伺服器是否運行中。');
+            }
+        }
+
+        // 網頁載入時先刷一次狀態
+        updateStatus();
+    </script>
+</body>
+
+</html>
