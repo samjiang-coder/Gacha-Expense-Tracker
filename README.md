@@ -32,7 +32,7 @@
 在終端機中執行以下指令，啟動 FastAPI 伺服器：
 
 ```bash
-uvicorn main:app --reload
+.venv\Scripts\uvicorn main:app --reload
 ```
 
 - `--reload`：讓伺服器支援熱重載，修改程式碼後會自動重新啟動。
