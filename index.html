@@ -42,16 +42,22 @@
     </div>
 
     <script>
+        // API_URL 指向我們後端伺服器的網址，這就像是後端伺服器的「家裡地址」
         const API_URL = 'http://127.0.0.1:8000/api';
 
         // 初始化與重新整理資料
+        // 就像是在遊戲開始時，去伺服器讀取當前的「代幣餘額」和「記帳紀錄」，並把網頁畫面更新
         async function updateStatus() {
             try {
+                // fetch 就像是跑腿的外送員，去後端地址拿最新的狀態資料
                 const res = await fetch(`${API_URL}/status`);
                 if (!res.ok) throw new Error('無法取得伺服器狀態');
                 const data = await res.json();
+                
+                // 把畫面上顯示代幣數量的 HTML 標籤文字改成最新的代幣數
                 document.getElementById('tokenCount').innerText = data.tokens;
 
+                // 把記帳紀錄列表（expenses）跑迴圈，一筆一筆包成 HTML <li> 標籤塞進去歷史清單中呈現
                 const list = document.getElementById('expenseList');
                 list.innerHTML = data.expenses.map(e => `
                     <li class="py-2 flex justify-between text-slate-600">
@@ -61,19 +67,22 @@
                 `).join('');
             } catch (err) {
                 console.error(err);
+                // 如果連不上後端（代表伺服器沒開），在抽卡結果欄位亮起紅色的警告文字
                 document.getElementById('gachaResult').innerText = "後端伺服器未啟動，請先啟動後端！";
                 document.getElementById('gachaResult').className = "text-md font-bold text-red-500";
             }
         }
 
         // 新增記帳
+        // 當使用者點擊「送出記帳」按鈕時會執行這個 function
         async function addExpense() {
             const itemInput = document.getElementById('itemInput');
             const amountInput = document.getElementById('amountInput');
-            const item = itemInput.value.trim();
-            const amount = parseInt(amountInput.value);
+            const item = itemInput.value.trim(); // 拿出品項名稱並把前後的空格刪掉
+            const amount = parseInt(amountInput.value); // 拿出金額並把字串轉換成數字整數
 
             // 前端欄位驗證
+            // 這是第一道防線，如果使用者連品項都沒寫，或是金額是負數/不是數字，就不需要送去給後端，直接彈窗提醒他
             if (!item) {
                 alert('請輸入記帳品項！');
                 return;
@@ -84,6 +93,7 @@
             }
 
             try {
+                // fetch 用 POST 方式將記帳資料（item 和 amount）打包成 JSON 字串傳給後端
                 const res = await fetch(`${API_URL}/expenses`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -92,10 +102,10 @@
 
                 if (res.ok) {
                     alert('記帳成功！代幣已入帳');
-                    // 清空輸入框
+                    // 清空輸入框，方便使用者下一次輸入
                     itemInput.value = '';
                     amountInput.value = '';
-                    updateStatus();
+                    updateStatus(); // 重新整理網頁，秀出剛剛記的帳和新增加的代幣
                 } else {
                     const err = await res.json();
                     // 確保 detail 是字串再顯示，如果是陣列（例如 FastAPI 驗證錯誤）則顯示一般錯誤訊息
@@ -108,15 +118,19 @@
         }
 
         // 抽卡邏輯
+        // 點擊「抽取盲盒！」按鈕時執行
         async function drawGacha() {
             try {
+                // 送出抽卡請求給後端，後端會扣除 20 代幣並隨機抽卡
                 const res = await fetch(`${API_URL}/gacha`, { method: 'POST' });
                 if (res.ok) {
-                    const data = await res.json();
+                    const data = await res.json(); // 拿到抽中卡片的資料
                     const resultText = document.getElementById('gachaResult');
+                    // 把卡片名稱顯示到螢幕上
                     resultText.innerText = `恭喜獲得：【${data.card_name}】`;
 
                     // 依稀有度變更文字顏色與動畫
+                    // 如果是超稀有的 SSR 卡片，就會給他閃亮亮的紅色並加上跳動特效（animate-bounce）！
                     if (data.rarity === 'SSR') {
                         resultText.className = "text-xl font-bold text-red-500 animate-bounce";
                     } else if (data.rarity === 'SR') {
@@ -125,9 +139,10 @@
                         resultText.className = "text-xl font-bold text-slate-700";
                     }
 
-                    updateStatus();
+                    updateStatus(); // 重新整理餘額與帳目列表
                 } else {
                     const err = await res.json();
+                    // 如果代幣不夠，後端會回傳錯誤，我們把它彈窗（alert）顯示給使用者看
                     const errorMsg = typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail);
                     alert(errorMsg);
                 }
